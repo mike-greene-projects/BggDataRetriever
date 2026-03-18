@@ -4,7 +4,7 @@ using CsvHelper.Configuration.Attributes;
 
 namespace BggDataRetriever
 {
-    public class BggCsvToJson
+    public class BaseExport
     {
         [JsonPropertyName("bgg_id")]
         [Name("id")]
@@ -69,5 +69,66 @@ namespace BggDataRetriever
         [JsonPropertyName("wargames_rank")]
         [Name("wargames_rank")]
         public int? WarGamesRank { get; set; }
+    }
+    
+    public class CollectionExport
+    {
+        // objectid
+        [JsonPropertyName("bgg_id")]
+        [Name("objectid")]
+        public int BggId { get; set; }
+        
+        [JsonPropertyName("name")]
+        [Name("objectname")]
+        public required string Name { get; set; }
+        
+        [JsonPropertyName("yearpublished")]
+        [Name("yearpublished")]
+        public required string YearPublished { get; set; }
+        
+        // is_expansion str representation ["expansion", "standalone"]
+        [JsonPropertyName("itemtype")]
+        [Name("itemtype")]
+        public required string ItemType { get; set; }
+        
+        [JsonPropertyName("averageweight")]
+        [Name("avgweight")]
+        public double AverageWeight { get; set; }
+        
+        [JsonPropertyName("numowned")]
+        [Name("numowned")]
+        public int? NumOwned { get; set; }
+        
+        [JsonPropertyName("minplayers")]
+        [Name("minplayers")]
+        public int MinPlayers { get; set; }
+        
+        [JsonPropertyName("maxplayers")]
+        [Name("maxplayers")]
+        public int MaxPlayers { get; set; }
+        
+        [JsonPropertyName("minplaytime")]
+        [Name("minplaytime")]
+        public int MinPlayTime { get; set; }
+        
+        [JsonPropertyName("maxplaytime")]
+        [Name("maxplaytime")]
+        public int MaxPlayTime { get; set; }
+        
+        [JsonPropertyName("playingtime")]
+        [Name("playingtime")]
+        public int PlayingTime { get; set; }
+        
+        [JsonPropertyName("bggrecplayers")]
+        [Name("bggrecplayers")]
+        public required string BggRecPlayers { get; set; }
+        
+        [JsonPropertyName("bggbestplayers")]
+        [Name("bggbestplayers")]
+        public required string BggBestPlayers { get; set; }
+        
+        [JsonPropertyName("bggrecagerange")]
+        [Name("bggrecagerange")]
+        public required string BggRecAgeRange { get; set; }
     }
 }

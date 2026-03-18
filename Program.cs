@@ -4,6 +4,7 @@ using OpenQA.Selenium.Chrome;
 using OpenQA.Selenium.Support.UI;
 using System.Web;
 using System.IO.Compression;
+using System.Net.Http.Headers;
 using System.Text;
 using System.Text.Json;
 using System.Text.RegularExpressions;
@@ -16,6 +17,7 @@ namespace BggDataRetriever
         private static ChromeDriver? _driver;
         private static readonly string _outPath = @"C:\temp";
         private static readonly string _outFile = "boardgames_ranks.csv";
+        private static readonly string _collectionFile = "collection.csv";
         
         public static async Task Main()
         {
@@ -25,8 +27,10 @@ namespace BggDataRetriever
             try
             {
                 string envInfo = Environment.GetEnvironmentVariable("bgginfo") ?? "";
+                string envAuth = Environment.GetEnvironmentVariable("bggauth") ?? "";
+                string gcpUrl = Environment.GetEnvironmentVariable("bgggcp") ?? "http://127.0.0.1:8080";
                 string[] envArr = Base64.Decode(envInfo).Split(";");
-
+                string json;
                 if (DoDataFetch(24))
                 {
                     ChromeOptions options = new ChromeOptions();
@@ -69,8 +73,7 @@ namespace BggDataRetriever
 
                     string amzDate = HttpUtility.ParseQueryString(new Uri(link).Query)["X-Amz-Date"];
                     string dlFile = $"bg_ranks_{amzDate}.zip";
-
-
+                    
                     await DownloadFile(link, $@"{_outPath}\{dlFile}");
                     Console.WriteLine($@"Saved to {_outPath}\{dlFile}");
 
@@ -82,19 +85,36 @@ namespace BggDataRetriever
                 }
 
                 using HttpClient client = new HttpClient();
-                List<BggCsvToJson> records = LoadCsv($@"{_outPath}\{_outFile}");
+                client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", envAuth);
+                List<BaseExport> records = LoadCsv($@"{_outPath}\{_outFile}");
 
                 foreach (var batch in records.Chunk(5000))
                 {
-                    var json = JsonSerializer.Serialize(batch);
+                    json = JsonSerializer.Serialize(batch);
                     var response = await client.PostAsync(
-                        "http://127.0.0.1:8080/update",
+                        $"{gcpUrl}/data/public",
                         new StringContent(json, System.Text.Encoding.UTF8, "application/json")
                     );
                     
                     Console.WriteLine(await response.Content.ReadAsStringAsync());
                 }
 
+                json = String.Empty;
+                string collectionPath = Path.Combine(_outPath, _collectionFile);
+                if (File.Exists(collectionPath))
+                {
+                    List<CollectionExport> collection = LoadCollectionCsv($@"{_outPath}\{_collectionFile}");
+                    foreach (var batch in collection.Chunk(5000))
+                    {
+                        json = JsonSerializer.Serialize(batch);
+                        var response = await client.PostAsync(
+                            $"{gcpUrl}/data/collection",
+                            new StringContent(json, System.Text.Encoding.UTF8, "application/json")
+                        );
+                    
+                        Console.WriteLine(await response.Content.ReadAsStringAsync());
+                    }
+                }
                 Console.WriteLine("Application completed");
             }
             catch (Exception ex)
@@ -110,7 +130,6 @@ namespace BggDataRetriever
         static bool DoDataFetch(int fromHours)
         {
             string fullPath = Path.Combine(_outPath, _outFile);
-            Console.WriteLine(fullPath);
             if (File.Exists(fullPath))
             {
                 DateTime lastWrite = File.GetLastWriteTimeUtc(fullPath);
@@ -130,18 +149,16 @@ namespace BggDataRetriever
             await File.WriteAllBytesAsync(path, bytes);
         }
         
-        public static List<BggCsvToJson> LoadCsv(string path)
+        public static List<BaseExport> LoadCsv(string path)
         {
             using StreamReader reader = new StreamReader(path);
             using CsvReader csv = new CsvReader(reader, CultureInfo.InvariantCulture);
 
-            List<BggCsvToJson> records = csv.GetRecords<BggCsvToJson>()
+            List<BaseExport> records = csv.GetRecords<BaseExport>()
                 .Select(r =>
                 {
                     r.Name = Sanitize(r.Name);
                     r.YearPublished = NormalizeYear(r.YearPublished);
-
-                    // sanitize other string fields if needed
                     return r;
                 })
                 .ToList();
@@ -149,6 +166,23 @@ namespace BggDataRetriever
             return records;
         }
 
+        public static List<CollectionExport> LoadCollectionCsv(string path)
+        {
+            using StreamReader reader = new StreamReader(path);
+            using CsvReader csv = new CsvReader(reader, CultureInfo.InvariantCulture);
+
+            List<CollectionExport> records = csv.GetRecords<CollectionExport>()
+                .Select(r =>
+                {
+                    r.Name = Sanitize(r.Name);
+                    r.YearPublished = NormalizeYear(r.YearPublished);
+                    return r;
+                })
+                .ToList();
+
+            return records;
+        }
+        
         static string Sanitize(string input)
         {
             if (string.IsNullOrEmpty(input)) return input;
